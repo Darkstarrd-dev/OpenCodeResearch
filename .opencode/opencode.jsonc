@@ -1,0 +1,19 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": "allow",
+  "references": {
+    "opencode": {
+      "type": "local",
+      "path": "Z:/Playground/MyReferenceRepository/opencode",
+      "description": "opencode 源代码仓库 - 本地开发参考"
+    },
+    "tinyrouter": {
+      "type": "git",
+      "repository": "Darkstarrd-dev/tinyrouter",
+      "description": "tinyrouter 项目 - 当需要参考其代码时使用"
+    }
+  },
+  "instructions": [
+    // "C:/OpenCodeResearch/00-SystemPromptGenerateWithoutTool.md"
+  ]
+}
