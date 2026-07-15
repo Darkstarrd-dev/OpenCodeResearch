@@ -1,106 +1,42 @@
-# GoMUD 学习笔记
+# GoMud 学习笔记
 
-## 项目概述
-用 Go 语言从零构建终端纯文字 MUD 游戏，通过项目驱动学习 Go 核心概念。
+## 第一幕：创世的火种 — Entity 基础
+- 定义 `Entity{Name, HP, MaxHP}`
+- 指针接收者实现 `IsAlive() / TakeDamage() / Heal()`
+- 关键：需要修改字段 → 指针接收者；溢出保护（HP 不低于 0、不超过 MaxHP）
 
----
+## 第二幕：万物初生 — 组合(内嵌)
+- `Player / Monster / NPC` 内嵌 `Entity`
+- 字段提升 & 方法提升：`p.HP` 与 `p.Entity.HP` 等价且指向同一内存；`p.TakeDamage()` 直接可用
+- 战斗场景模拟：玩家 vs 哥布林（AttackPower 反击）
 
-## 第一幕 · 创世的火种 — Entity 基础结构体 [已完成]
+## 第三幕：世界的骨架 — Room（已完成）
+- `Room{Name, Description, Exits map[string]*Room}`
+- `GetExit(direction) *Room`：逗号 ok 惯用法，无出口返回 nil
+- `Describe()`：遍历 Exits 拼接出口字符串
+- 行走试炼：`current *Room` 在房间间移动
+- 关键事实：Exits 用指针 *Room 形成引用关系；nil map range 安全；current 用指针=共享可变状态+效率
 
-### 核心知识点
+## 第四幕：万物的交互 — Usable 接口（已讲解，暂缓实现）
+- `type Usable interface { Use(target *Entity) string }`
+- `Potion`（治疗药水，有 Charges）与 `Scroll`（火焰卷轴）用指针接收者实现 Use
+- 背包 `[]Usable`：接口切片
+- 方法集规则：值类型 T 仅含值接收者方法；*T 含值+指针接收者方法
 
-#### 1. 指针接收者 vs 值接收者
-```
-需要修改实例状态 → 必须用指针接收者 (e *Entity)
-只需读取实例状态 → 值或指针都行，但建议统一风格
-一个 struct 的某些方法用了指针接收者 → 所有方法都统一用指针接收者
-```
-
-#### 2. 已实现的 Entity 结构体
-```go
-type Entity struct {
-    Name  string
-    HP    int
-    MaxHP int
-}
-
-func (e *Entity) IsAlive() bool        // HP > 0
-func (e *Entity) TakeDamage(dmg int)   // HP -= dmg, 不低于 0
-func (e *Entity) Heal(amount int)      // HP += amount, 不超过 MaxHP
-```
-
----
-
-## 第二幕 · 万物初生 — Struct 组合与内嵌 [已完成]
-
-### 核心知识点
-
-#### 1. Go 内嵌（Embedding）机制
-```
-type Player struct {
-    Entity     // 内嵌：不是继承，是组合
-    Level int
-    Exp   int
-}
-```
-
-#### 2. 字段提升（Field Promotion）
-- 内嵌的 `Entity` 字段（Name, HP, MaxHP）被"提升"到外层 struct
-- `p.Name` 和 `p.Entity.Name` 完全等价，指向同一块内存
-- 两种写法都能编译通过，简写更推荐
-
-#### 3. 方法提升（Method Promotion）
-- 内嵌的 `Entity` 方法（IsAlive, TakeDamage, Heal）被"提升"到外层 struct
-- `p.TakeDamage(20)` 和 `p.Entity.TakeDamage(20)` 完全等价
-- 调用提升的方法时，实际操作的是内嵌的 Entity 实例
-
-#### 4. 三种生灵已定义
-```go
-type Player struct {
-    Entity
-    Level int
-    Exp   int
-}
-
-type Monster struct {
-    Entity
-    AttackPower int
-}
-
-type NPC struct {
-    Entity
-    Dialogue string
-}
-```
-
-#### 5. 调用方式选择
-```go
-monster.TakeDamage(40)        // 最佳：简洁，走封装方法
-monster.Entity.TakeDamage(40) // 能用但冗余
-monster.HP -= 40              // 最差：绕过 TakeDamage 的溢出保护
-```
-
----
-
-## 第三幕 · 世界的骨架 — 房间与出口系统 [待开始]
-
-### 预告
-- Room struct：Name, Description, Exits map[string]*Room
-- 方法：GetExit(direction string) *Room, Describe()
-- 核心思考题：为什么 Exits 的值必须是 *Room 而不是 Room？
-  - 答案预告：不用指针会拷贝副本，房间之间无法互相引用，形成不了双向连接的地图
-
-### 尚未涉及的概念（后续幕）
-- [ ] Interface 实战（Usable 接口：药水/卷轴）
-- [ ] 游戏循环与玩家输入（bufio.Scanner / fmt.Scanln）
-- [ ] 房间内实体管理（Map 遍历、增删）
-- [ ] 战斗系统（Interface 多态：Attacker 接口）
-- [ ] 物品系统（Interface：Usable / Pickable）
-- [ ] 存档系统（文件 I/O / JSON 序列化）
-
----
-
-## 代码文件
-- **路径**: `C:\OpenCodeResearch\GoMud\main.go`
-- **模块名**: GoMud
-- **当前状态**: 包含 Entity + Player/Monster/NPC 定义 + 测试代码（120 行）
+## 概念巩固复盘（2026-07-14 会话：从头过一遍 Go）
+- #1 变量/零值【已点亮】：
+  - 五种零值：int→0, bool→false, string→"", 指针→nil, map→nil
+  - 为什么重要：①安全（不读内存垃圾）②nil 是"无"的天然哨兵（GetExit 返回 nil=墙）
+    ③int 零值 0 让"刚造出 HP 未设=死"天然成立（IsAlive）④nil map 可读不可写（Describe 安全；写入 panic）⑤struct 全字段自动归零
+  - 旁注：C 局部变量不初始化是"刻意哲学"（信任程序员/不为未要求的付费），代价是未初始化 bug；Go 反过来默认安全
+  - 旁注：nil 源自拉丁文 nihil（nothing），经 ALGOL/Lisp 入计算机；非 "Not In List"
+- #2 if/for【已点亮】：
+  - `for k := range m` 拿 key；`for k,v := range m` 拿 key+value；`_` 是空白标识符（占位不用）
+- #3 Slice/Map【进行中】：
+  - slice 零值 nil，len=0 cap=0；**可对 nil slice 直接 append（安全）**——Act4 背包 `var bag []Usable; append` 依赖此
+  - error vs panic：error=预期可恢复失败（返回 error 值，if err!=nil 处理）；
+    panic=意外不可恢复崩溃（打印调用栈，如 nil map 写入/越界/空指针）；recover() 在 defer 接住
+  - array `[N]T`：长度固定且是类型一部分；值类型，赋值/传参整体拷贝；元素可改；元素类型固定（同质），
+    但元素类型可为任意类型（含 slice/map/struct/数组）；混合类型用 `any`(=interface{}) 需类型断言
+  - slice `[]T`：引用类型，头(指针+len+cap)共享底层数组；赋值/传参只拷头
+  - 关系：slice 是 array 的视图；array 是 slice 的地基

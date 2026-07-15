@@ -58,6 +58,32 @@ type NPC struct {
     Dialogue string
 }
 
+type Room struct {
+    Name        string
+    Description string
+    Exits       map[string]*Room   // key 是方向 "north"/"south"/"east"/"west"
+}
+
+// 返回指定方向的房间指针，如果该方向没有出口，返回 nil
+func (r *Room) GetExit(direction string) *Room {
+	if r.Exits[direction] != 0 { return r.Exits[direction] }
+		else { return nil}
+}
+// 打印房间的名字、描述、以及所有可用出口
+func (r *Room) Describe() {
+    // TODO: 你来实现
+    // 提示：用 for range 遍历 r.Exits
+
+    // 输出格式示例：
+    //   【村庄广场】
+    fmt.Println(r.Name,\n)
+    //   这里是新手村的中心，人来人往。
+    fmt.Println(r.Description,\n)
+    fmt.Println("出口: ")
+    for k := range r.Exits{ fmt.Println(k," ")}
+    //   出口：north south east
+}
+
 func main() {
     // 测试你的代码
     hero := &Entity{Name: "勇者", HP: 100, MaxHP: 100}
