@@ -135,6 +135,94 @@
 - **值类型参数**：传进去的是拷贝（副本），改副本不影响原值
 - **演化链**：重复指令 → 打包成函数 → CALL/RET + 栈帧 → 高级语言的 func
 
+### #7 Interface 历史脉络【已点亮】
+- **起点：Simula 继承的僵硬**
+  - 继承把类型关系在编译时锁死：Player 继承 Entity，编译器直接按 Entity 内存布局读
+  - Alan Kay 观察生物分类：鸭子会游泳会走会叫，不需要看 DNA 证明"它是水禽"
+  - 洞察："重要的不是你**是什么**，而是你**能做什么**" = 鸭子类型名字由来
+- **Smalltalk 的革命（1970s Alan Kay）**：
+  - 不只发明鸭子类型，更激进：让"类型"从编译时搬到**运行时** = **动态分派（Dynamic Dispatch）**
+  - Simula：类型关系编译时锁死，快但僵硬
+  - Smalltalk：编译时不锁死，运行时才知道实际类型，灵活但多一层间接
+- **Go interface 的底层结构**：
+  - interface 值 = 两样东西：**类型信息 + 实际值指针**
+  - ```
+    ┌──────────┬──────────┐
+    │ 类型信息   │ 实际值指针 │
+    └──────────┴──────────┘
+    ```
+  - 编译时不知道传进来什么，运行时才填这两格
+  - 比 struct 慢一点点——多一层间接（运行时才知道实际类型）
+- **Go 隐式接口 vs Java 显式 implements**：
+  - 好处：灵活，不用声明"我实现了这个接口"，方法签名对就自动匹配
+  - 代价：一眼看 struct 定义，没法确定它实现了哪些接口，得翻方法对照
+- **Go 最著名的坑：nil interface ≠ 装着 nil 的 interface**：
+  - `var u Usable` → u = (类型=nil, 值=nil) → u == nil ✅
+  - `var p *Potion = nil; u = p` → u = (类型=*Potion, 值=nil) → u != nil ❌
+  - 赋值时 Go 把类型信息也填进去了，有类型信息就不算"空 interface"
+  - 调用 `u.Use(target)` → panic（运行时顺值指针找，发现 nil，解引用 nil 炸了）
+- **静态 vs 动态分派对比**：
+  | | 静态（编译时定死） | 动态分派（运行时才定） |
+  |---|---|---|
+  | 机制 | 函数、指针、struct、方法绑定 | interface 运行时决定调谁的方法 |
+  | 速度 | 快 | 多一层间接，稍慢 |
+  | 灵活性 | 僵硬 | 灵活 |
+  | Go 的体现 | struct、func、指针 | interface（Smalltalk 思想的高效实现） |
+- **演化链**：Simula 继承(编译时锁死) → Smalltalk 鸭子类型+动态分派(运行时才定) → Go 隐式 interface(两格结构高效实现)
+
+### #6 Struct/方法/继承【已点亮】
+- **起点：1950s 数据与操作分离**（Fortran/早期 C）
+  - 数据：`struct Entity { name, hp, max_hp }`
+  - 操作：`void take_damage(struct Entity *e, int dmg)` —— 全局函数，碰巧第一个参数是 Entity*
+  - 痛点 1：5 种实体 → 函数写五遍（逻辑一样，类型不同）
+  - 痛点 2：C 函数参数类型写死，`struct Player*` 只能吃 Player，无法"泛指"
+  - 痛点 3：没有归属关系——200 个函数散落文件，不知道哪个属于 Entity，接手者只能猜
+- **Simula 67 的革命**：把数据和操作绑进同一个盒子 = **class + 方法**
+  - 方法 = 归属于某个类型的函数；`e.TakeDamage(30)` 比 `take_damage(e,30)` 多了归属
+  - Go 继承：`func (e *Entity) TakeDamage(dmg int)` 的 `(e *Entity)` = Simula 的"归属声明"
+- **Simula 的第二件武器：继承（Inheritance）**
+  - 抽象父类 Entity → 具体子类 Player/Monster/NPC 继承它
+  - 继承做两件事：①复用（子类自动拥有父类字段+方法，不用写五遍）②归属（take_damage 写一遍在父类，所有子类都有）
+  - 解决了"泛指而不是特指"：函数参数写 Entity*，传 Player*/Monster* 都能进去
+- **Smalltalk 的反抗（1970s Alan Kay）**
+  - 继承把父类子类绑死：继承 Entity 就得把它的字段全继承过来，哪怕只需要方法不需要字段
+  - Smalltalk 的解法：不关心你**是什么**，只关心你**能做什么** = 鸭子类型 / interface 的起源
+- **Go 两者都学了**：
+  | | Simula（继承） | Smalltalk（鸭子类型） | Go |
+  |---|---|---|---|
+  | 复用什么 | 字段+方法 | 只要方法签名对 | 两者都支持 |
+  | 关系 | 父子绑定死 | 松散，无需声明 | struct 内嵌 + interface |
+  | is-a vs has-a | is-a（Player 就是 Entity） | — | has-a（Player 里面有 Entity）+ interface（能做什么） |
+- **Go 内嵌 vs Java 继承的关键区别**：
+  - Java 继承 = 单线链条（只能继承一个父类）；Go 内嵌 = 可塞多个 struct
+  - Java：Player **是一种** Entity（is-a）→ `Entity e = new Player()` 合法
+  - Go：Player **有一个** Entity（has-a）→ `var e Entity = Player{...}` 编译错误（不是同类型）
+  - Go 故意砍掉 is-a，因为它太僵硬（绑死在继承树上）；用 has-a + interface 两个灵活工具替代
+- **Go 设计哲学**：has-a（内嵌）+ 能做什么（interface），故意不要 is-a（传统继承）
+
+### #5 指针【已点亮】
+- **起源**：1957 Fortran 默认按引用传递——函数能直接改调用者的变量，方便但危险
+- **C 的转折（1972）**：Dennis Ritchie 选了"默认按值传递（拷贝副本）"——安全（函数怎么折腾都是副本，原件不动）+ 显式（要改原件得自己明确授权）
+- **指针的诞生**：指针是"默认拷贝"这个安全选择的**补偿机制**。不发明指针，选了拷贝就等于砍掉"函数改原件"的能力
+  - `void swap(int *a, int *b)` —— 参数是指针类型，调用者传地址进去 = 显式授权
+  - `swap(&x, &y)` —— `&x` 是调用者主动把"改原件的能力"交给函数
+- **Fortran vs C 对称**：
+  | | Fortran（默认引用） | C（默认拷贝） |
+  |---|---|---|
+  | 函数拿到 | 本人 | 副本 |
+  | 想保护原件 | 做不到 | 默认就保护着 |
+  | 想改原件 | 天然就能 | 显式传 `&x`，授权才能改 |
+- **Go 继承 C 哲学**：
+  - 值类型默认拷贝，指针显式传 `&p`
+  - 方法接收者选 `*T` 才能改字段；选 `T` 改的是副本，原件不动
+  - `*Entity` 在类型位置 = "指向 Entity 的指针"类型名；`*指针` 在变量前 = 解引用操作
+- **Go 自动取地址的细节**：
+  - `hero := Entity{...}; hero.TakeDamage(30)` → Go 偷偷做 `(&hero).TakeDamage(30)`
+  - `(&hero)` 指向 hero 本人，真的改了 hero（不是副本）
+  - 但**临时值不可取地址**：`(Entity{...}).TakeDamage(30)` → **编译错误**（不是 panic）
+  - 编译错误 vs panic：编译错误=编译阶段拦住，程序跑不起来；panic=运行时崩溃
+- **演化链**：Fortran 默认引用 → C 默认拷贝(安全) → 发明指针补偿(显式授权改原件) → Go 继承 C 哲学
+
 ### #4 多返回值 & 命名返回值【已点亮】
 - **痛点**：函数经常需要同时返回"结果"+"状态"（值是否存在、是否出错、是否有余数）
 - **各语言对比**：
